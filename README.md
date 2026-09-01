@@ -120,8 +120,8 @@ pip install -r requirements.txt
 
 ## Author
 
-**Stefan Lutz** — MSc Data Analytics and Information Systems Management, Arden University, Berlin
+**Devika Krishnan** — MSc Data Analytics and Information Systems Management, Arden University, Berlin
 
 ---
 
-*This repository accompanies my master's dissertation. Feel free to reach out if you'd like to discuss the methodology or findings.*
+*This repository accompanies my master's dissertation.*
