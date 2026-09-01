@@ -1,0 +1,19 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+
+# Environments
+.venv/
+venv/
+.env
+
+# Raw / intermediate Excel exports from src/ scripts (not checked in - only
+# the processed CSVs in data/ are tracked)
+*.xlsx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/

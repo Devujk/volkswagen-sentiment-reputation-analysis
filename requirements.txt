@@ -1,0 +1,9 @@
+pandas
+praw
+vaderSentiment
+yfinance
+matplotlib
+seaborn
+scipy
+openpyxl
+jupyter
