@@ -27,10 +27,10 @@ Using Volkswagen's factory shutdown announcement as a real, high-visibility even
 
 | Stage | Tool / Library | What it does |
 |---|---|---|
-| 1. Reddit post collection | `praw` | Searches 10 relevant subreddits for posts about the shutdown (2024–2025) → 1,337 posts |
-| 2. Relevance filtering | `pandas` | Keyword filter on titles narrows to highly relevant posts → 73 posts |
-| 3. Comment extraction | `praw` | Pulls all comments from the 73 relevant posts → 5,480 comments |
-| 4. Sentiment scoring | `vaderSentiment` | Scores each (deduplicated) comment as positive / negative / neutral → 1,533 unique labeled comments |
+| 1. Reddit post collection | `praw` | Searches 10 relevant subreddits (Volkswagen, cars, autos, news, Europe, Germany, electricvehicles, worldnews, autonews, AskEurope) using 20 event-related keywords |
+| 2. Relevance filtering | `pandas` | Strict keyword filter on titles narrows results to the posts most clearly discussing the shutdown |
+| 3. Comment extraction | `praw` | Pulls all comments from the relevant posts (raw scrape) |
+| 4. Cleaning & sentiment scoring | `vaderSentiment`, `pandas` | Normalizes text, removes duplicates, and scores each comment as positive / negative / neutral → **1,533 unique labeled comments** (per dissertation §3.4.1, reduced from 18,625 raw comments after cleaning) |
 | 5. Stock data collection | `yfinance` | Downloads daily VW stock price (ticker `VOW3.DE`), July 2024 – April 2025 |
 | 6. Weekly merge & interpolation | `pandas` | Resamples sentiment and stock data to weekly averages and aligns them for comparison |
 | 7. Correlation & visualization | `pandas`, `matplotlib`, Power BI | Tests the sentiment–stock relationship (Pearson correlation) and visualizes trends |
@@ -55,11 +55,15 @@ The event timeline (July–December 2024) was segmented into four phases — **O
 
 ![Sentiment vs stock trend](results/sentiment_vs_stock_trend.png)
 
-**Correlation analysis** — a Pearson correlation test across the full 28-week timeline found **no statistically significant linear relationship** between weekly sentiment and stock price (r ≈ 0.09, p ≈ 0.66 — failing to reject H₀). However, the scatter plot shows short-term, non-linear co-movement during specific phases (e.g. the Speculation period), suggesting the relationship may exist but isn't linear or immediate:
+**Correlation analysis** — Pearson correlation was tested across two windows, per the dissertation (§4.4):
+- **Overall (July–December 2024):** r = +0.0326, p = 0.9118 — not statistically significant.
+- **Speculation Phase only (Sep 1–Oct 28, 2024):** r = -0.2374, p = 0.8474 — also not statistically significant, though visually a tighter, downward-sloping cluster of points during this phase.
+
+Both fail to reject H₀: no significant **linear** relationship between weekly sentiment and stock price. This doesn't rule out a non-linear or delayed relationship — the Pearson test only speaks to linear association — though visual inspection of the scatter plot suggests some temporary co-movement during parts of the Speculation phase specifically.
 
 ![Sentiment vs stock scatter](results/sentiment_stock_scatter.png)
 
-*(This is reproduced live, with real output, in [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb) — open it directly on GitHub to see the charts render.)*
+*(A supplementary re-run of this test on the processed weekly file included in this repo — `data/weekly_sentiment_vs_stock.csv`, which spans a few weeks further than the dissertation's official window — gives r ≈ 0.09, p ≈ 0.66. The exact coefficient differs slightly from the officially submitted result above, most likely due to using a different snapshot of the weekly-aggregated data, but the conclusion is identical: no statistically significant linear relationship. See [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb) for this reproducible version.)*
 
 ---
 
@@ -90,11 +94,11 @@ The event timeline (July–December 2024) was segmented into four phases — **O
 
 ## About the Data
 
-The full scraped dataset (20k+ raw comments) isn't redistributed in this repo, in line with Reddit's API terms on sharing collected data. Instead, `data/` includes:
+The full scraped comment set isn't redistributed in this repo, in line with Reddit's API terms on sharing collected data. Per the dissertation (§3.4.1), preprocessing reduced 18,625 raw comments to 1,533 unique, deduplicated entries. Instead of the full raw set, `data/` includes:
 - the **fully processed, aggregated weekly dataset** used for the correlation analysis (no personal data — just weekly averages), and
 - a **150-comment representative sample** (public comment text + VADER scores) so the notebook is runnable end-to-end without needing your own Reddit API credentials.
 
-To reproduce the full pipeline from scratch, run `src/01` → `src/07` in order with your own Reddit API credentials (see below).
+The `src/` scripts document the main stages of the original workflow and are chained via saved intermediate CSV/Excel files (each script writes what the next one reads), so running `01` → `07` in order with your own Reddit API credentials will reproduce the pipeline end-to-end. Note this reconstructs the workflow rather than replaying the exact original run — a fresh Reddit scrape today will return different posts/comments than the ones used in the dissertation.
 
 ## Tech Stack
 
@@ -108,15 +112,15 @@ pip install -r requirements.txt
 
 **Fastest way to see it work:** open `notebooks/analysis.ipynb` — it runs entirely on the processed data already included in `data/`, no API keys required.
 
-**To reproduce the full pipeline from raw data:** each script in `src/` corresponds to one stage and is meant to be run in order (01 → 07). You'll need your own Reddit API credentials (`client_id`, `client_secret`) from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) — set them as environment variables (e.g. `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`) rather than hardcoding them. Never commit real API credentials to a public repo.
+**To reproduce the full pipeline from raw data:** each script in `src/` corresponds to one stage, in order (01 → 07), and is chained via saved intermediate files. You'll need your own Reddit API credentials (`client_id`, `client_secret`) from [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) — set them as environment variables (e.g. `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`) rather than hardcoding them. Never commit real API credentials to a public repo. Note that a fresh scrape today will pull different, more recent posts than the ones used in the dissertation.
 
 ## Limitations & Future Work
 
 - Reddit is only one social platform; results may not generalize to X/Twitter, news comment sections, or broader public opinion.
-- **Duplicate-scrape artifact (found and corrected):** the raw Reddit scrape contained one post whose comment thread was collected ~225x, because overlapping keyword/subreddit searches matched the same post multiple times before deduplication. This inflated that post's weight in the raw (pre-dedup) data — visible as a mismatch between an early raw-data sentiment chart and the dissertation's reported percentages. Deduplicating on comment text (done in `04_sentiment_analysis_vader.py`) resolves it; all figures in this README and the notebook use the corrected, deduplicated dataset.
+- **Data-quality note (found while assembling this repository, not part of the original submitted methodology):** while auditing the source files for this repo, the raw comment export was found to contain 20,374 rows — more than the dissertation's reported pre-deduplication count of 18,625 — with one Reddit post's comments appearing roughly 225 times over. The cause wasn't investigated further and isn't established. It's not something the dissertation discusses, since the dissertation's own preprocessing step (§3.4.1: 18,625 raw → 1,533 unique) already removes duplicate comment text, so it doesn't change the reported results. It's noted here only for transparency, since it surfaced while preparing this repo.
 - VADER is a general-purpose lexicon model — a domain-tuned or transformer-based model (e.g. BERT) could improve accuracy on automotive-industry-specific language.
 - Stock price is an imperfect proxy for "reputation" — it's affected by many confounding factors beyond public sentiment.
-- The correlation analysis is a single-period Pearson test on 28 weekly points — both series are time-ordered (autocorrelated), which violates the independence assumption Pearson relies on, and a small n limits statistical power. Non-linear or lagged-effect models (e.g. cross-correlation with time lags, or a proper time-series model) could capture delayed market reactions and avoid that assumption more rigorously.
+- Both the dissertation's official Pearson tests and this repository's supplementary re-run share the same underlying issue: weekly sentiment and stock price are both time-ordered (autocorrelated) series, which violates the independence assumption Pearson relies on, and the small sample size (this repo's supplementary analysis uses 28 weekly observations) limits statistical power in either case. Non-linear or lagged-effect models (e.g. cross-correlation with time lags, or a proper time-series model) could capture delayed market reactions and avoid that assumption more rigorously.
 
 ## Author
 
